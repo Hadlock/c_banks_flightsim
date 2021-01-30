@@ -11,9 +11,9 @@ gcc -ansi banks.c -lm -lX11 -o banks
 
 Run:
 
-cat horizon.sc pittsburgh.sc | ./banks
+cat horizon.md pittsburgh.md | ./banks
 
-Get the .sc data files from the IOCCC site.
+Get the .md data files from the IOCCC site.
 
 http://www0.us.ioccc.org/years.html#1998
 

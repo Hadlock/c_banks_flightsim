@@ -5,7 +5,7 @@ Modernization of Carl Bank's 1998 flightsim
 TL;DR
 
 * `gcc -ansi banks.c -lm -lX11 -o banks`
-* `cat horizon.sc pittsburgh.sc | ./banks`
+* `cat horizon.md pittsburgh.md | ./banks`
 
 Yes, it compiles and runs(!)
 
@@ -52,9 +52,9 @@ drawn connect-a-dot and terminated with 0 0 0. Z upward is negative.
 
 ### Run
 
-`cat horizon.sc pittsburgh.sc | ./banks`
+`cat horizon.md pittsburgh.md | ./banks`
 
-Get the .sc data files from the IOCCC site.
+Get the .md data files from the IOCCC site.
 
 <http://www0.us.ioccc.org/years.html#1998>
 

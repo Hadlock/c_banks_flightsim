@@ -1,2 +1,2 @@
 #! /bin/sh
-cat horizon.sc pittsburgh.sc | ./banks
+cat horizon.md pittsburgh.md | ./banks

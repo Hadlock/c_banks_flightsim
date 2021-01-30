@@ -17,7 +17,7 @@ http://www.personal.psu.edu/users/c/w/cwb129/
 
 ### To use
 
-`cat horizon.sc pittsburgh.sc | ./banks`
+`cat horizon.md pittsburgh.md | ./banks`
 
 What can we say?  It's a flight sim done in 1536 bytes of real code. This one is a real marvel.  When people say the size limits are too tight, well, we can just point them at this one.  This program really pushes the envelope!
 
@@ -54,38 +54,38 @@ On your display, you will see on the bottom left corner three instruments.  The 
 
 ### Scenery
 
-Each of the *.sc files is a scenery file.  The simulator
-program reads in the scenery from standard input on startup.
-You may input more than one scenery file, as long as there are
+Each of the *.md files is a mdenery file.  The simulator
+program reads in the mdenery from standard input on startup.
+You may input more than one mdenery file, as long as there are
 less than 1000 total lines of input.
 
-Here is a brief description of the scenery files:
+Here is a brief demdription of the mdenery files:
 
 ```shell
-      horizon.sc    -- A horizon, nothing more.  You will probably
-		       always want to input this piece of scenery.
+      horizon.md    -- A horizon, nothing more.  You will probably
+		       always want to input this piece of mdenery.
 
-      mountains.sc  -- An alternate horizon; a little more
+      mountains.md  -- An alternate horizon; a little more
 		       mountainous.
 
-      pittsburgh.sc -- Scenery of downtown Pittsburgh.  The downtown
+      pittsburgh.md -- mdenery of downtown Pittsburgh.  The downtown
 		       area is initially located to your right.
 
-      bb.sc         -- Simple obstacle course.  Try to fly over the
+      bb.md         -- Simple obstacle course.  Try to fly over the
 		       buildings and under the bridges.
 
-      pyramids.sc   -- Fly over the tombs of the ancient Pharaohs,
-		       in this (fictitious) Egyptian landscape.
+      pyramids.md   -- Fly over the tombs of the ancient Pharaohs,
+		       in this (fictitious) Egyptian landmdape.
 
-      river.sc      -- Follow a flowing river from the sky.
+      river.md      -- Follow a flowing river from the sky.
 ```
 
-  A few examples of how to input scenery:
+  A few examples of how to input mdenery:
 
 ```shell
-      cat horizon.sc pittsburgh.sc | ./banks
-      cat mountains.sc bb.sc | ./banks
-      cat mountains.sc river.sc pyramids.sc | ./banks
+      cat horizon.md pittsburgh.md | ./banks
+      cat mountains.md bb.md | ./banks
+      cat mountains.md river.md pyramids.md | ./banks
 ```
 
 You can simulate flying through a cloud bank as well:
