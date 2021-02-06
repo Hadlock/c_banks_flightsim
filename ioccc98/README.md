@@ -10,7 +10,7 @@ IOCCC maintains a copy here: <https://www.ioccc.org/years.html#1998>
 run `compile.sh`
 run `run.sh`
 
-Detailed instructions can be found in `banks.hint.md`
+Detailed instructions can be found in `banks.hint.scene`
 
 NOTE!!! Uses X11. Many modern linux distros ship with Wayland, which will break compatibility with this program, probably
 

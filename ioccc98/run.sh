@@ -1,2 +1,2 @@
 #! /bin/sh
-cat horizon.md pittsburgh.md | ./banks
+cat horizon.scene pittsburgh.scene | ./banks
