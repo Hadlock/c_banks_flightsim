@@ -158,20 +158,61 @@ Z -> R33.
 
 */
 
-double airplaneX, sideTiltRadians, P, timeDelta = dt, T, Z, D = 1, d, worldZ[999], E, speed = 8, I, up_down, accel, worldY[999], M, m, compassRadians;
+double  airplaneX, 
+        sideTiltRadians, 
+        P, 
+        timeDelta = dt, 
+        T, Z, 
+        D = 1, 
+        d, 
+        worldZ[999], 
+        E, 
+        speed = 8, 
+        I, 
+        up_down, 
+        accel, 
+        worldY[999], 
+        M, m, 
+        compassRadians;
 
-double worldX[999], forwardTiltRadians = 33e-3, airplaneZ = 1E3, t, left_right, v, W, S = 74.5, speedFeet = 221, X = 7.26;
+double  worldX[999], 
+        forwardTiltRadians = 33e-3, 
+        airplaneZ = 1E3, 
+        t, 
+        left_right, 
+        v, W, 
+        S = 74.5, 
+        speedFeet = 221, 
+        X = 7.26;
 
-double a, gravityAccel = 32.2 /*ft/sec^2*/, airplaneY, F, H;
+double  a, 
+        gravityAccel = 32.2 /*ft/sec^2*/,
+        airplaneY, 
+        F, H;
 
-double cos_compass, cos_forwardTilt, cos_sideTilt = 1, Dx, Dy, Dz, R11, R12,
+double  cos_compass, 
+        cos_forwardTilt, 
+        cos_sideTilt = 1, 
+        Dx, Dy, Dz, 
+        R11, R12, R13, R21, 
+        R22, R23, R31, R32, 
+        R33, 
+        worldX_rel, 
+        worldY_rel,
+        worldZ_rel, 
+        sin_compass, 
+        sin_forwardTilt, 
+        sin_sideTilt;
 
-    R13, R21, R22, R23, R31, R32, R33, worldX_rel, worldY_rel,
+int     N, x, 
+        integerConvert, 
+        num_pts, 
+        speedKnots, 
+        idx;
 
-    worldZ_rel, sin_compass, sin_forwardTilt, sin_sideTilt;
-
-int N, x, integerConvert, num_pts, speedKnots, idx;
-int prevX, prevY, y;
+int     prevX, 
+        prevY, 
+        y;
 
 Window win;
 
@@ -214,10 +255,15 @@ main(){
         
         F += timeDelta * P;
         
-        compassRadians += cos_sideTilt * timeDelta * F / cos_forwardTilt + d / cos_forwardTilt * sin_sideTilt * timeDelta;
+        compassRadians +=   cos_sideTilt * timeDelta * F /
+                            cos_forwardTilt + d /
+                            cos_forwardTilt * sin_sideTilt * timeDelta;
+        
         forwardTiltRadians += d * timeDelta * cos_sideTilt - timeDelta * F * sin_sideTilt;
 
-        sideTiltRadians += (sin_sideTilt * d / cos_forwardTilt * sin_forwardTilt + v + sin_forwardTilt / cos_forwardTilt * F * cos_sideTilt) * timeDelta;
+        sideTiltRadians +=  (sin_sideTilt * d /
+                             cos_forwardTilt * sin_forwardTilt + v + sin_forwardTilt /
+                             cos_forwardTilt * F * cos_sideTilt) * timeDelta;
 
         /* Next 9 values make up a rotation matrix for a camera transform. See wiki1. */
 
@@ -352,15 +398,15 @@ main(){
                 break;
 
             case Right:
-                -left_right;
+                --left_right;
                 break;
 
             case Throttle_Down:
-                -speed;
+                --speed;
                 break;
 
             case Down:
-                -up_down;
+                --up_down;
                 break;
 
             case Enter:
@@ -398,12 +444,24 @@ main(){
         sprintf(infoStr, "% 5d % 3d" "% 7d", speedKnots, (integerConvert = 9E3 + compassRadians * 57.3) % 0550, (int)airplaneZ);
 
         a = 2.63 / speedFeet * d;
-        X += (d * speedFeet - T / S * (.19 * E + a * .64 + up_down / 1e3) - M * v + gravityAccel * R33) * timeDelta;
+        X +=    (d * speedFeet - T /
+                S * (.19 * E + a * .64 + up_down / 1e3) 
+                - M * v + gravityAccel * R33) 
+                * timeDelta;
         W = d;
-        d += T * (.45 - 14 / speedFeet * X - a * 130 - up_down * .14) * timeDelta / 125e2 + F * timeDelta * v;
+        d +=  T * (.45 - 14 / speedFeet * X - a * 130 - up_down * .14) 
+                * timeDelta / 125e2 + F * timeDelta * v;
 
         D = v / speedFeet * 15;
-        P = (T * (47 * I - m * 52 + E * 94 * D - t * .38 + left_right * .21 * E) / 1e2 + W * 179 * v) / 2312;
-        v -= (W * F - T * (.63 * m - I * .086 + m * E * 19 - D * 25 - .11 * left_right) / 107e2) * timeDelta;
+        
+        P = (T *
+            (47 * I - m * 52 + E * 94 * D - t * .38 + left_right * .21 * E)
+            / 1e2 + W * 179 * v) 
+            / 2312;
+        
+        v -= (W * F - T * 
+             (.63 * m - I * .086 + m * E * 19 - D * 25 - .11 * left_right) 
+             / 107e2) 
+             * timeDelta;
     }
 }

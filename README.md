@@ -17,7 +17,7 @@ At some point, possibly in March 2017 (19 years later) a user on linuxgamecast.c
 
 I've attempted to clean that user's significant work up further, and splat it out on github for the world to better discover. Both the original code (free of copyright, by the author's own proclamation in his blog post), and the De-obfuscation are interesting both as a historical note, and perhaps more importantly, as an excellent study of bare-bones 3D space simulators, effective methods of projecting points of 3D space against a flat screen, and a whole lot of other hard problems that you're not going to immediately understand, trying to decipher something like the Quake 1 source code.
 
-I've cleaned up the code as-found, and it compiles and runs now but you can only turn left at the moment.
+I've cleaned up the code as-found, and it compiles and runs now the same as the obfuscated code.
 
 ## What does it look like?
 
