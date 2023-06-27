@@ -9,6 +9,10 @@ TL;DR
 
 Yes, it compiles and runs(!)
 
+Ubuntu/Debian users:
+
+`sudo apt install libx11-dev`
+
 ## Where this came from
 
 Originally Banks wrote this in 1998
