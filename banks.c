@@ -249,36 +249,59 @@ void sleepForInterval() {
     select(0, 0, 0, 0, &sleeptime);
 }
 
+
+
 /* Function to calculate angles and update rotation matrix */
 void calculateAngles() {
-    /* Angle calculations. */
-    cos_forwardTilt = cos(forwardTiltRadians);
-    sin_forwardTilt = sin(forwardTiltRadians);
-    cos_compass = cos(compassRadians);
 
-    F += timeDelta * P;
+    /* Function to calculate cosines and sines of angles */
+    void calculateTrigonometricValues() {
+        /* Angle calculations. */
+        cos_forwardTilt = cos(forwardTiltRadians);
+        sin_forwardTilt = sin(forwardTiltRadians);
+        cos_compass = cos(compassRadians);
+        cos_sideTilt = cos(sideTiltRadians);
+        sin_sideTilt = sin(sideTiltRadians);
+        sin_compass = sin(compassRadians);
+    }
 
-    compassRadians += cos_sideTilt * timeDelta * F / cos_forwardTilt + d / cos_forwardTilt * sin_sideTilt * timeDelta;
-    forwardTiltRadians += d * timeDelta * cos_sideTilt - timeDelta * F * sin_sideTilt;
-    sideTiltRadians += (sin_sideTilt * d / cos_forwardTilt * sin_forwardTilt + v + sin_forwardTilt / cos_forwardTilt * F * cos_sideTilt) * timeDelta;
+    void updateF() {
+        F += timeDelta * P;
+    }
 
-    /* Next 9 values make up a rotation matrix for a camera transform. See wiki1. */
+    void updateCompassRadians() {
+        compassRadians += cos_sideTilt * timeDelta * F / cos_forwardTilt + d / cos_forwardTilt * sin_sideTilt * timeDelta;
+    }
 
-    R11 = cos_forwardTilt * cos_compass;
-    R12 = cos_forwardTilt * sin_compass;
-    R13 = -sin_forwardTilt; /* Original code didn’t put this in a variable. */
+    void updateForwardTiltRadians() {
+        forwardTiltRadians += d * timeDelta * cos_sideTilt - timeDelta * F * sin_sideTilt;
+    }
 
-    R21 = cos_compass * sin_sideTilt * sin_forwardTilt - sin_compass * cos_sideTilt;
-    R22 = cos_sideTilt * cos_compass + sin_sideTilt * sin_compass * sin_forwardTilt;
-    R23 = sin_sideTilt * cos_forwardTilt;
+    void updateSideTiltRadians() {
+        sideTiltRadians += (sin_sideTilt * d / cos_forwardTilt * sin_forwardTilt + v + sin_forwardTilt / cos_forwardTilt * F * cos_sideTilt) * timeDelta;
+    }
 
-    R31 = sin_compass * sin_sideTilt + cos_sideTilt * sin_forwardTilt * cos_compass;
-    R32 = sin_forwardTilt * sin_compass * cos_sideTilt - sin_sideTilt * cos_compass;
-    R33 = cos_sideTilt * cos_forwardTilt;
+    void updateRotationMatrix() {
+        /* Next 9 values make up a rotation matrix for a camera transform. See wiki1. */
+        R11 = cos_forwardTilt * cos_compass;
+        R12 = cos_forwardTilt * sin_compass;
+        R13 = -sin_forwardTilt; /* Original code didn’t put this in a variable. */
 
-    cos_sideTilt = cos(sideTiltRadians);
-    sin_sideTilt = sin(sideTiltRadians);
-    sin_compass = sin(compassRadians);
+        R21 = cos_compass * sin_sideTilt * sin_forwardTilt - sin_compass * cos_sideTilt;
+        R22 = cos_sideTilt * cos_compass + sin_sideTilt * sin_compass * sin_forwardTilt;
+        R23 = sin_sideTilt * cos_forwardTilt;
+
+        R31 = sin_compass * sin_sideTilt + cos_sideTilt * sin_forwardTilt * cos_compass;
+        R32 = sin_forwardTilt * sin_compass * cos_sideTilt - sin_sideTilt * cos_compass;
+        R33 = cos_sideTilt * cos_forwardTilt;
+    }
+
+    calculateTrigonometricValues();
+    updateF();
+    updateCompassRadians();
+    updateForwardTiltRadians();
+    updateSideTiltRadians();
+    updateRotationMatrix();
 }
 
 /* Function to update the display */
