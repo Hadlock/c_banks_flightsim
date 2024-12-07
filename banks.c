@@ -158,6 +158,7 @@ Z -> R33.
 
 */
 
+/* Global variables for the simulation */
 double  airplaneX, 
         sideTiltRadians, 
         P, 
@@ -220,121 +221,105 @@ char infoStr[52];
 
 GC gc;
 
-main(){
-    /* X windows set up. */
+/* Function to set up X Windows */
+void setupXWindows(Display **disp, Window *win, GC *gc) {
+    *disp = XOpenDisplay(0);
+    *win = RootWindow(*disp, 0);
+    *gc = XCreateGC(*disp, *win, 0, 0);
+    XSetForeground(*disp, *gc, BlackPixel(*disp, 0));
+    *win = XCreateSimpleWindow(*disp, *win, 0, 0, 400, 400, 0, 0, WhitePixel(*disp, 0));
+    XSelectInput(*disp, *win, KeyPressMask);
+    XMapWindow(*disp, *win);
+}
 
-    Display *disp = XOpenDisplay(0);
-    win = RootWindow(disp, 0);
-    gc = XCreateGC(disp, win, 0, 0);
-    XSetForeground(disp, gc, BlackPixel(disp, 0));
-    win = XCreateSimpleWindow(disp, win, 0, 0, 400, 400, 0, 0, WhitePixel(disp, 0));
-    XSelectInput(disp, win, KeyPressMask);
-    XMapWindow(disp, win);
-
+/* Function to load map files from stdin into arrays */
+void loadMapFiles() {
     /*Load map files from stdin into arrays. */
+    for (; scanf("%lf%lf%lf", worldX + num_pts, worldY + num_pts, worldZ + num_pts) + 1; num_pts++);
+}
 
-    for (; scanf("%lf%lf%lf", worldX + num_pts, worldY + num_pts, worldZ + num_pts) + 1;
-         num_pts++);
+/* Function to sleep for a specified interval */
+void sleepForInterval() {
+    /* Sleep */
 
-    /* Infinite loop, though plane can drop and ruin the calculations. */
-    for (;;)
-    {
-        /* Sleep */
+    /*dt is 0.02. timeval is in bits/time.h and gives secs and usecs.
+    This becomes 0.02 * 1000000 = 20000 usecs = 0.02 seconds.
+    Need it here to reset it since the select call wipes it out. */
+    struct timeval sleeptime = {0, dt * 1e6};
+    select(0, 0, 0, 0, &sleeptime);
+}
 
-        /*dt is 0.02. timeval is in bits/time.h and gives secs and usecs.
-        This becomes 0.02 * 1000000 = 20000 usecs = 0.02 seconds.
-        Need it here to reset it since the select call wipes it out. */
+/* Function to calculate angles and update rotation matrix */
+void calculateAngles() {
+    /* Angle calculations. */
+    cos_forwardTilt = cos(forwardTiltRadians);
+    sin_forwardTilt = sin(forwardTiltRadians);
+    cos_compass = cos(compassRadians);
 
-        struct timeval sleeptime = {0, dt * 1e6};
-        select(0, 0, 0, 0, &sleeptime);
+    F += timeDelta * P;
 
-        /* Angle calculations. */
-        cos_forwardTilt = cos(forwardTiltRadians);
-        sin_forwardTilt = sin(forwardTiltRadians);
-        cos_compass = cos(compassRadians);
+    compassRadians += cos_sideTilt * timeDelta * F / cos_forwardTilt + d / cos_forwardTilt * sin_sideTilt * timeDelta;
+    forwardTiltRadians += d * timeDelta * cos_sideTilt - timeDelta * F * sin_sideTilt;
+    sideTiltRadians += (sin_sideTilt * d / cos_forwardTilt * sin_forwardTilt + v + sin_forwardTilt / cos_forwardTilt * F * cos_sideTilt) * timeDelta;
+
+    /* Next 9 values make up a rotation matrix for a camera transform. See wiki1. */
+
+    R11 = cos_forwardTilt * cos_compass;
+    R12 = cos_forwardTilt * sin_compass;
+    R13 = -sin_forwardTilt; /* Original code didn’t put this in a variable. */
+
+    R21 = cos_compass * sin_sideTilt * sin_forwardTilt - sin_compass * cos_sideTilt;
+    R22 = cos_sideTilt * cos_compass + sin_sideTilt * sin_compass * sin_forwardTilt;
+    R23 = sin_sideTilt * cos_forwardTilt;
+
+    R31 = sin_compass * sin_sideTilt + cos_sideTilt * sin_forwardTilt * cos_compass;
+    R32 = sin_forwardTilt * sin_compass * cos_sideTilt - sin_sideTilt * cos_compass;
+    R33 = cos_sideTilt * cos_forwardTilt;
+
+    cos_sideTilt = cos(sideTiltRadians);
+    sin_sideTilt = sin(sideTiltRadians);
+    sin_compass = sin(compassRadians);
+}
+
+/* Function to update the display */
+void updateDisplay(Display *disp, Window win, GC gc) {
+    XClearWindow(disp, win);
+
+    /*Loop over points and draw lines.*/
+    for (idx = 0, prevX = 1E4; idx < num_pts;) {
+        /*The world point must be moved so the airplane is the 0,0,0 origin.
+        Then the point must be rotated by all 3 angles.
         
-        F += timeDelta * P;
-        
-        compassRadians +=   cos_sideTilt * timeDelta * F /
-                            cos_forwardTilt + d /
-                            cos_forwardTilt * sin_sideTilt * timeDelta;
-        
-        forwardTiltRadians += d * timeDelta * cos_sideTilt - timeDelta * F * sin_sideTilt;
+        Finally the 3D point must be projected onto the 2D plane of the
+        display. All this is the camera transform in
 
-        sideTiltRadians +=  (sin_sideTilt * d /
-                             cos_forwardTilt * sin_forwardTilt + v + sin_forwardTilt /
-                             cos_forwardTilt * F * cos_sideTilt) * timeDelta;
+        en.wikipedia.org/wiki/Perspective_transform#Perspective_projection.*/
 
-        /* Next 9 values make up a rotation matrix for a camera transform. See wiki1. */
+        /*Shift world object vertex x,y,z relative to airplane as origin.
+        The Z line uses + because airplaneZ is upward positive. It has to
+        be negated because world Z is upward negative:
+        worldZ – -airplaneZ = worldZ + airplaneZ. */
 
-        R11 = cos_forwardTilt * cos_compass;
-        R12 = cos_forwardTilt * sin_compass;
-        R13 = -sin_forwardTilt; /* Original code didn’t put this in a variable. */
+        worldX_rel = worldX[idx] - airplaneX;
+        worldY_rel = worldY[idx] - airplaneY;
+        worldZ_rel = worldZ[idx] + airplaneZ;
 
-        R21 = cos_compass * sin_sideTilt * sin_forwardTilt - sin_compass * cos_sideTilt;
-        R22 = cos_sideTilt * cos_compass + sin_sideTilt * sin_compass * sin_forwardTilt;
+        /* Apply the 3 angle rotation matrix. */
 
-        R23 = sin_sideTilt * cos_forwardTilt;
-        R31 = sin_compass * sin_sideTilt + cos_sideTilt * sin_forwardTilt * cos_compass;
+        Dx = R11 * worldX_rel + R12 * worldY_rel + R13 * worldZ_rel;
+        Dy = R21 * worldX_rel + R22 * worldY_rel + R23 * worldZ_rel;
+        Dz = R31 * worldX_rel + R32 * worldY_rel + R33 * worldZ_rel;
 
-        R32 = sin_forwardTilt * sin_compass * cos_sideTilt - sin_sideTilt * cos_compass;
-        R33 = cos_sideTilt * cos_forwardTilt;
+        /* Point D is now a shifted and rotated world vertex.
+        We are looking along the Dx axis, I think. */
 
-        cos_sideTilt = cos(sideTiltRadians);
-        sin_sideTilt = sin(sideTiltRadians);
-        sin_compass = sin(compassRadians);
-
-        /* Update the display. */
-
-        XClearWindow(disp, win);
-
-        /*Loop over points and draw lines.*/
-
-        for (idx = 0, prevX = 1E4; idx < num_pts;)
-
-        {
-
-            /*The world point must be moved so the airplane is the 0,0,0 origin.
-            Then the point must be rotated by all 3 angles.
-            
-            Finally the 3D point must be projected onto the 2D plane of the
-            display. All this is the camera transform in
-
-            en.wikipedia.org/wiki/Perspective_transform#Perspective_projection.*/
-
-            /*Shift world object vertex x,y,z relative to airplane as origin.
-            The Z line uses + because airplaneZ is upward positive. It has to
-            be negated because world Z is upward negative:
-            worldZ – -airplaneZ = worldZ + airplaneZ. */
-
-            worldX_rel = worldX[idx] - airplaneX;
-            worldY_rel = worldY[idx] - airplaneY;
-            worldZ_rel = worldZ[idx] + airplaneZ;
-
-            /* Apply the 3 angle rotation matrix. */
-
-            Dx = R11 * worldX_rel + R12 * worldY_rel + R13 * worldZ_rel;
-            Dy = R21 * worldX_rel + R22 * worldY_rel + R23 * worldZ_rel;
-            Dz = R31 * worldX_rel + R32 * worldY_rel + R33 * worldZ_rel;
-
-            /* Point D is now a shifted and rotated world vertex.
-            We are looking along the Dx axis, I think. */
-
-            /*0,0,0 signals end of an object. Dy or Dz larger than Dx means point
-            is out of range of view (assuming a square display). */
-
-            if (worldX[idx] + worldY[idx] + worldZ[idx] == 0 ||
-                Dx < fabs(Dy) ||
-                Dx < fabs(Dz))
-
-                /* Don’t draw this point and set flag to not draw it next time
-                through loop. */
-
-                prevX = 1e4;
-
-            else
-
-            {
+        /*0,0,0 signals end of an object. Dy or Dz larger than Dx means point
+        is out of range of view (assuming a square display). */
+        if (worldX[idx] + worldY[idx] + worldZ[idx] == 0 || Dx < fabs(Dy) || Dx < fabs(Dz)) {
+            /* Don’t draw this point and set flag to not draw it next time
+            through loop. */
+            prevX = 1e4;
+        } else {
 
             /* Project 3D point onto 2D plane to be displayed. This will
             make distant objects look smaller. The rotation has us
@@ -352,116 +337,152 @@ main(){
             until 2nd point is read. It also skips points that fall out of
             range of view. */
 
-                if (prevX - 1E4)
-                    /* Draw line from (prevX, prevY) to (x, y).
-                    Flickers since we’re not using double buffering. */
-                    XDrawLine(disp, win, gc, prevX, prevY, x, y);
+            if (prevX - 1E4)
+                /* Draw line from (prevX, prevY) to (x, y).
+                Flickers since we’re not using double buffering. */
+                XDrawLine(disp, win, gc, prevX, prevY, x, y);
 
-                prevX = x;
-                prevY = y;
-            }
-
-            ++idx;
+            prevX = x;
+            prevY = y;
         }
 
-        /*HUD. infoStr = 3 values: speed in knots, heading 0=N 90=E 180=S 270=W,
-        altimeter in feet.*/
+        ++idx;
+    }
+    /*HUD. infoStr = 3 values: speed in knots, heading 0=N 90=E 180=S 270=W,
+    altimeter in feet.*/
+    XDrawString(disp, win, gc, 20, 380, infoStr, 17);
+}
 
-        XDrawString(disp, win, gc, 20, 380, infoStr, 17);
-
+/* Function to handle key press events */
+void handleKeyPress(Display *disp) {
+    XEvent event;
+    while (XPending(disp)) {
         /*Get key press.*/
-
-        for (; XPending(disp);)
-
-        {
-
-            XEvent z;
-            XNextEvent(disp, &z);
-
-            /* Original code has nested x ? y : z forms that made an interesting
-            puzzle. They reduce to the simple switch below. */
-
-            N = XLookupKeysym(&z.xkey, 0);
-            switch (N)
-
-            {
+        XNextEvent(disp, &event);
+        KeySym key = XLookupKeysym(&event.xkey, 0);
+        switch (key) {
             case Up:
                 ++up_down;
                 break;
-
-            case Left:
-                ++left_right;
-                break;
-
-            case Throttle_Up:
-                ++speed;
-                break;
-
-            case Right:
-                --left_right;
-                break;
-
-            case Throttle_Down:
-                --speed;
-                break;
-
             case Down:
                 --up_down;
                 break;
-
+            case Left:
+                ++left_right;
+                break;
+            case Right:
+                --left_right;
+                break;
+            case Throttle_Up:
+                ++speed;
+                break;
+            case Throttle_Down:
+                --speed;
+                break;
             case Enter:
                 left_right = 0;
                 break; /* re-center from turning */
-            }
+            default:
+                break;
         }
+    }
+}
 
-        /* Airplane position and physics: gravity, no wind. */
 
+
+/* Function to update the position and physics of the airplane */
+void updatePhysics() {
+
+    void updateMomentum() {
         M += H * timeDelta;
+    }
+
+    void calculateInertia() {
         I = M / speedFeet;
+    }
 
-        /* Update airplane position. */
-
+    void updateAirplanePosition() {
         airplaneX += (R11 * speedFeet + R21 * M + R31 * X) * timeDelta;
         airplaneY += (R12 * speedFeet + I * M + R32 * X) * timeDelta;
-
         /* airplaneZ is positive upward, rotation matrix is negative upward Z. */
-
         airplaneZ += (-R13 * speedFeet - R23 * M - R33 * X) * timeDelta;
+    }
+
+    void calculateIntermediateValues() {
         m = 15 * F / speedFeet;
-        E = .1 + X * 4.9 / speedFeet;
+        E = 0.1 + X * 4.9 / speedFeet;
         T = X * X + speedFeet * speedFeet + M * M;
         t = T * m / 32 - I * T / 24;
-        H = gravityAccel * R23 + v * X - F * speedFeet + t / S;
+    }
 
+    void calculateH() {
+        H = gravityAccel * R23 + v * X - F * speedFeet + t / S;
+    }
+
+    void calculateAcceleration() {
         accel = F * M + (speed * 1e4 / speedFeet - (T + E * 5 * T * E) / 3e2) / S - X * d - sin_forwardTilt * gravityAccel;
+    }
+
+    void updateSpeed() {
         speedFeet += accel * timeDelta;
         speedKnots = speedFeet / 1.7;
+    }
 
+    void updateInfoString() {
         /*infoStr = 3 values: speed in knots, heading 0=N 90=E 180=S 270=W,
         altimeter in feet.*/
+        sprintf(infoStr, "% 5d % 3d % 7d", speedKnots, (int)(compassRadians * 57.3) % 360, (int)airplaneZ);
+    }
 
-        sprintf(infoStr, "% 5d % 3d" "% 7d", speedKnots, (integerConvert = 9E3 + compassRadians * 57.3) % 0550, (int)airplaneZ);
-
+    /* Function to calculate intermediate values for the next step */
+    void calculateNextStepValues() {
         a = 2.63 / speedFeet * d;
-        X +=    (d * speedFeet - T /
-                S * (.19 * E + a * .64 + up_down / 1e3) 
-                - M * v + gravityAccel * R33) 
-                * timeDelta;
+        X += (d * speedFeet - T / S * (0.19 * E + a * 0.64 + up_down / 1e3) - M * v + gravityAccel * R33) * timeDelta;
         W = d;
-        d +=  T * (.45 - 14 / speedFeet * X - a * 130 - up_down * .14) 
-                * timeDelta / 125e2 + F * timeDelta * v;
-
+        d += T * (0.45 - 14 / speedFeet * X - a * 130 - up_down * 0.14) * timeDelta / 125e2 + F * timeDelta * v;
         D = v / speedFeet * 15;
-        
-        P = (T *
-            (47 * I - m * 52 + E * 94 * D - t * .38 + left_right * .21 * E)
-            / 1e2 + W * 179 * v) 
-            / 2312;
-        
-        v -= (W * F - T * 
-             (.63 * m - I * .086 + m * E * 19 - D * 25 - .11 * left_right) 
-             / 107e2) 
-             * timeDelta;
+    }
+
+    void calculateP() {
+        P = (T * (47 * I - m * 52 + E * 94 * D - t * 0.38 + left_right * 0.21 * E) / 1e2 + W * 179 * v) / 2312;
+    }
+
+    void updateV() {
+        v -= (W * F - T * (0.63 * m - I * 0.086 + m * E * 19 - D * 25 - 0.11 * left_right) / 107e2) * timeDelta;
+    }
+
+
+    updateMomentum();
+    calculateInertia();
+    updateAirplanePosition();
+    calculateIntermediateValues();
+    calculateH();
+    calculateAcceleration();
+    updateSpeed();
+    updateInfoString();
+    calculateNextStepValues();
+    calculateP();
+    updateV();
+}
+
+/* Main function */
+main() {
+    Display *disp;
+    Window win;
+    GC gc;
+
+    /* Set up X Windows */
+    setupXWindows(&disp, &win, &gc);
+
+    /* Load map files from stdin */
+    loadMapFiles();
+
+    /* Infinite loop to update the simulation */
+    for (;;) {
+        sleepForInterval();
+        calculateAngles();
+        updateDisplay(disp, win, gc);
+        handleKeyPress(disp);
+        updatePhysics();
     }
 }
