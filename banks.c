@@ -304,10 +304,62 @@ void calculateAngles() {
     updateRotationMatrix();
 }
 
+
 /* Function to update the display */
 void updateDisplay(Display *disp, Window win, GC gc) {
-    XClearWindow(disp, win);
 
+    /* Function to clear the window */
+    void clearWindow(Display *disp, Window win) {
+        XClearWindow(disp, win);
+    }
+
+    /* Function to shift world object vertex relative to airplane as origin */
+    void shiftWorldObjectVertex(int idx) {
+        worldX_rel = worldX[idx] - airplaneX;
+        worldY_rel = worldY[idx] - airplaneY;
+        worldZ_rel = worldZ[idx] + airplaneZ;
+    }
+
+    /* Function to apply the 3 angle rotation matrix */
+    void applyRotationMatrix() {
+        Dx = R11 * worldX_rel + R12 * worldY_rel + R13 * worldZ_rel;
+        Dy = R21 * worldX_rel + R22 * worldY_rel + R23 * worldZ_rel;
+        Dz = R31 * worldX_rel + R32 * worldY_rel + R33 * worldZ_rel;
+    }
+
+    void project3DPointOnto2DPlane() {
+        /* Project 3D point onto 2D plane to be displayed. This will
+        make distant objects look smaller. The rotation has us
+        looking along the Dx axis, I think. So the farther out Dx
+        is, the smaller Dy and Dz become. The wiki1 article has
+        Dz as the denominator. Why? Is the article wrong? This
+        code is working. */
+
+        /* Window is 400 x 400. */
+        x = Dy / Dx * 4E2 + 2E2;
+        y = Dz / Dx * 4E2 + 2E2;
+    }
+
+    /* Function to draw line from previous point to current point */
+    void drawLine(Display *disp, Window win, GC gc) {
+        /* 1E4 flag prevents drawing first point since we don’t have a line
+        until 2nd point is read. It also skips points that fall out of
+        range of view. */
+
+        if (prevX - 1E4)
+            /* Draw line from (prevX, prevY) to (x, y).
+            Flickers since we’re not using double buffering. */
+            XDrawLine(disp, win, gc, prevX, prevY, x, y);
+        prevX = x;
+        prevY = y;
+    }
+
+    void drawHUD(Display *disp, Window win, GC gc) {
+        XDrawString(disp, win, gc, 20, 380, infoStr, 17);
+    }
+
+    clearWindow(disp, win);
+    
     /*Loop over points and draw lines.*/
     for (idx = 0, prevX = 1E4; idx < num_pts;) {
         /*The world point must be moved so the airplane is the 0,0,0 origin.
@@ -323,57 +375,29 @@ void updateDisplay(Display *disp, Window win, GC gc) {
         be negated because world Z is upward negative:
         worldZ – -airplaneZ = worldZ + airplaneZ. */
 
-        worldX_rel = worldX[idx] - airplaneX;
-        worldY_rel = worldY[idx] - airplaneY;
-        worldZ_rel = worldZ[idx] + airplaneZ;
-
-        /* Apply the 3 angle rotation matrix. */
-
-        Dx = R11 * worldX_rel + R12 * worldY_rel + R13 * worldZ_rel;
-        Dy = R21 * worldX_rel + R22 * worldY_rel + R23 * worldZ_rel;
-        Dz = R31 * worldX_rel + R32 * worldY_rel + R33 * worldZ_rel;
-
-        /* Point D is now a shifted and rotated world vertex.
-        We are looking along the Dx axis, I think. */
+        shiftWorldObjectVertex(idx);
+        applyRotationMatrix();
 
         /*0,0,0 signals end of an object. Dy or Dz larger than Dx means point
         is out of range of view (assuming a square display). */
+
         if (worldX[idx] + worldY[idx] + worldZ[idx] == 0 || Dx < fabs(Dy) || Dx < fabs(Dz)) {
             /* Don’t draw this point and set flag to not draw it next time
             through loop. */
             prevX = 1e4;
         } else {
 
-            /* Project 3D point onto 2D plane to be displayed. This will
-            make distant objects look smaller. The rotation has us
-            looking along the Dx axis, I think. So the farther out Dx
-            is, the smaller Dy and Dz become. The wiki1 article has
-            Dz as the denominator. Why? Is the article wrong? This
-            code is working. */
 
-            /* Window is 400 x 400. */
-
-            x = Dy / Dx * 4E2 + 2E2;
-            y = Dz / Dx * 4E2 + 2E2;
-
-            /* 1E4 flag prevents drawing first point since we don’t have a line
-            until 2nd point is read. It also skips points that fall out of
-            range of view. */
-
-            if (prevX - 1E4)
-                /* Draw line from (prevX, prevY) to (x, y).
-                Flickers since we’re not using double buffering. */
-                XDrawLine(disp, win, gc, prevX, prevY, x, y);
-
-            prevX = x;
-            prevY = y;
+            project3DPointOnto2DPlane();
+            drawLine(disp, win, gc);
         }
 
         ++idx;
     }
+    
     /*HUD. infoStr = 3 values: speed in knots, heading 0=N 90=E 180=S 270=W,
     altimeter in feet.*/
-    XDrawString(disp, win, gc, 20, 380, infoStr, 17);
+    drawHUD(disp, win, gc);
 }
 
 /* Function to handle key press events */
