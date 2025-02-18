@@ -219,7 +219,7 @@ Window win;
 
 char infoStr[52];
 
-GC gc;
+GC gc; /* X Window System graphics context */
 
 /* Function to set up X Windows */
 void setupXWindows(Display **disp, Window *win, GC *gc) {
@@ -227,7 +227,7 @@ void setupXWindows(Display **disp, Window *win, GC *gc) {
     *win = RootWindow(*disp, 0);
     *gc = XCreateGC(*disp, *win, 0, 0);
     XSetForeground(*disp, *gc, BlackPixel(*disp, 0));
-    *win = XCreateSimpleWindow(*disp, *win, 0, 0, 400, 400, 0, 0, WhitePixel(*disp, 0));
+    *win = XCreateSimpleWindow(*disp, *win, 0, 0, 384, 128, 0, 0, WhitePixel(*disp, 0));
     XSelectInput(*disp, *win, KeyPressMask);
     XMapWindow(*disp, *win);
 }
@@ -336,8 +336,8 @@ void updateDisplay(Display *disp, Window win, GC gc) {
         code is working. */
 
         /* Window is 400 x 400. */
-        x = Dy / Dx * 4E2 + 2E2;
-        y = Dz / Dx * 4E2 + 2E2;
+        x = Dy / Dx * 384 + 64; /* basically this should be 100% of x + 50% of y */
+        y = Dz / Dx * 384 + 64; /* basically this should be 100% of x + 50% of y */
     }
 
     /* Function to draw line from previous point to current point */
