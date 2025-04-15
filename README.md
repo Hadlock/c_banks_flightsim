@@ -13,6 +13,13 @@ Ubuntu/Debian users:
 
 `sudo apt install libx11-dev`
 
+MacOS (ARM64, probably works on Intel) users:
+
+*`brew install gcc` (if `gcc --version` returns "clang" you'll need to install gnu gcc)
+* install XQuartz (https://www.xquartz.org/) tested on v2.8.5
+* `gcc-14 banks.c -std=gnu89 -I/opt/X11/include -L/opt/X11/lib -lX11 -lm -o banks` (may need to modify gcc-14 to the version brew installs)
+* `cat horizon.scene pittsburgh.scene | ./banks`
+
 ## Where this came from
 
 Originally Banks wrote this in 1998
