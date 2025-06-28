@@ -99,9 +99,21 @@ makes a sequence of statements. The last one is the value of the
 #define Right XK_Right
 #define Enter XK_Return
 
-/* Update every 0.02 seconds. */
-
+/* Physics timestep - keep small for accuracy */
 #define dt 0.02
+
+/* Graphics update interval - 0.5 seconds */
+#define GRAPHICS_INTERVAL 0.5
+
+/* Lookup table constants */
+#define TRIG_TABLE_SIZE 3600  /* 0.1 degree resolution (360 * 10) */
+#define ANGLE_TO_INDEX(rad) ((int)((rad) * 57.29577951 * 10.0) % TRIG_TABLE_SIZE)
+
+/* Pre-calculated math constants to avoid expensive divisions */
+#define FEET_TO_KNOTS 0.588235294  /* 1/1.7 */
+#define RAD_TO_DEG 57.29577951     /* 180/PI */
+#define INV_32 0.03125             /* 1/32 */
+#define INV_24 0.041666667         /* 1/24 */
 
 /* Variables renamed from original program.
 
@@ -205,6 +217,13 @@ double  cos_compass,
         sin_forwardTilt, 
         sin_sideTilt;
 
+/* Timing variables for graphics throttling */
+double lastGraphicsTime = 0.0;
+
+/* Lookup tables for sin/cos */
+double sin_table[TRIG_TABLE_SIZE];
+double cos_table[TRIG_TABLE_SIZE];
+
 int     N, x, 
         integerConvert, 
         num_pts, 
@@ -240,13 +259,45 @@ void loadMapFiles() {
 
 /* Function to sleep for a specified interval */
 void sleepForInterval() {
-    /* Sleep */
+    /* Sleep for physics timestep */
 
     /*dt is 0.02. timeval is in bits/time.h and gives secs and usecs.
     This becomes 0.02 * 1000000 = 20000 usecs = 0.02 seconds.
     Need it here to reset it since the select call wipes it out. */
     struct timeval sleeptime = {0, dt * 1e6};
     select(0, 0, 0, 0, &sleeptime);
+}
+
+/* Function to get current time in seconds */
+double getCurrentTime() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec + tv.tv_usec / 1e6;
+}
+
+/* Function to initialize trigonometric lookup tables */
+void initTrigTables() {
+    int i;
+    double angle;
+    for (i = 0; i < TRIG_TABLE_SIZE; i++) {
+        angle = i * 0.1 * 3.14159265359 / 180.0;  /* Convert 0.1 degrees to radians */
+        sin_table[i] = sin(angle);
+        cos_table[i] = cos(angle);
+    }
+}
+
+/* Fast sin lookup */
+double fast_sin(double rad) {
+    int index = ANGLE_TO_INDEX(rad);
+    if (index < 0) index += TRIG_TABLE_SIZE;
+    return sin_table[index];
+}
+
+/* Fast cos lookup */
+double fast_cos(double rad) {
+    int index = ANGLE_TO_INDEX(rad);
+    if (index < 0) index += TRIG_TABLE_SIZE;
+    return cos_table[index];
 }
 
 
@@ -256,13 +307,13 @@ void calculateAngles() {
 
     /* Function to calculate cosines and sines of angles */
     void calculateTrigonometricValues() {
-        /* Angle calculations. */
-        cos_forwardTilt = cos(forwardTiltRadians);
-        sin_forwardTilt = sin(forwardTiltRadians);
-        cos_compass = cos(compassRadians);
-        cos_sideTilt = cos(sideTiltRadians);
-        sin_sideTilt = sin(sideTiltRadians);
-        sin_compass = sin(compassRadians);
+        /* Angle calculations using lookup tables. */
+        cos_forwardTilt = fast_cos(forwardTiltRadians);
+        sin_forwardTilt = fast_sin(forwardTiltRadians);
+        cos_compass = fast_cos(compassRadians);
+        cos_sideTilt = fast_cos(sideTiltRadians);
+        sin_sideTilt = fast_sin(sideTiltRadians);
+        sin_compass = fast_sin(compassRadians);
     }
 
     void updateF() {
@@ -440,12 +491,15 @@ void handleKeyPress(Display *disp) {
 /* Function to update the position and physics of the airplane */
 void updatePhysics() {
 
+    /* Pre-calculate reciprocal of speedFeet to avoid multiple divisions */
+    double invSpeedFeet = 1.0 / speedFeet;
+
     void updateMomentum() {
         M += H * timeDelta;
     }
 
     void calculateInertia() {
-        I = M / speedFeet;
+        I = M * invSpeedFeet;  /* Use multiplication instead of division */
     }
 
     void updateAirplanePosition() {
@@ -456,10 +510,10 @@ void updatePhysics() {
     }
 
     void calculateIntermediateValues() {
-        m = 15 * F / speedFeet;
-        E = 0.1 + X * 4.9 / speedFeet;
+        m = 15 * F * invSpeedFeet;  /* Use multiplication instead of division */
+        E = 0.1 + X * 4.9 * invSpeedFeet;  /* Use multiplication instead of division */
         T = X * X + speedFeet * speedFeet + M * M;
-        t = T * m / 32 - I * T / 24;
+        t = T * m * INV_32 - I * T * INV_24;  /* Use pre-calculated constants */
     }
 
     void calculateH() {
@@ -467,27 +521,59 @@ void updatePhysics() {
     }
 
     void calculateAcceleration() {
-        accel = F * M + (speed * 1e4 / speedFeet - (T + E * 5 * T * E) / 3e2) / S - X * d - sin_forwardTilt * gravityAccel;
+        accel = F * M + (speed * 1e4 * invSpeedFeet - (T + E * 5 * T * E) / 3e2) / S - X * d - sin_forwardTilt * gravityAccel;
     }
 
     void updateSpeed() {
         speedFeet += accel * timeDelta;
-        speedKnots = speedFeet / 1.7;
+        speedKnots = speedFeet * FEET_TO_KNOTS;  /* Use multiplication instead of division */
     }
 
     void updateInfoString() {
         /*infoStr = 3 values: speed in knots, heading 0=N 90=E 180=S 270=W,
-        altimeter in feet.*/
-        sprintf(infoStr, "% 5d % 3d % 7d", speedKnots, (int)(compassRadians * 57.3) % 360, (int)airplaneZ);
+        altimeter in feet. Use integer operations to avoid expensive sprintf formatting.*/
+        
+        int heading = (int)(compassRadians * RAD_TO_DEG) % 360;
+        if (heading < 0) heading += 360;  /* Handle negative angles */
+        
+        /* Simple integer-to-string conversion to avoid sprintf overhead */
+        char *p = infoStr;
+        
+        /* Speed (5 digits, right-aligned) */
+        int speed_int = speedKnots;
+        if (speed_int >= 10000) { *p++ = '0' + (speed_int / 10000) % 10; } else { *p++ = ' '; }
+        if (speed_int >= 1000)  { *p++ = '0' + (speed_int / 1000) % 10;  } else { *p++ = ' '; }
+        if (speed_int >= 100)   { *p++ = '0' + (speed_int / 100) % 10;   } else { *p++ = ' '; }
+        if (speed_int >= 10)    { *p++ = '0' + (speed_int / 10) % 10;    } else { *p++ = ' '; }
+        *p++ = '0' + speed_int % 10;
+        *p++ = ' ';
+        
+        /* Heading (3 digits, right-aligned) */
+        if (heading >= 100) { *p++ = '0' + (heading / 100) % 10; } else { *p++ = ' '; }
+        if (heading >= 10)  { *p++ = '0' + (heading / 10) % 10;  } else { *p++ = ' '; }
+        *p++ = '0' + heading % 10;
+        *p++ = ' ';
+        
+        /* Altitude (7 digits, right-aligned) */
+        int alt_int = (int)airplaneZ;
+        if (alt_int < 0) { *p++ = '-'; alt_int = -alt_int; } else { *p++ = ' '; }
+        if (alt_int >= 1000000) { *p++ = '0' + (alt_int / 1000000) % 10; } else { *p++ = ' '; }
+        if (alt_int >= 100000)  { *p++ = '0' + (alt_int / 100000) % 10;  } else { *p++ = ' '; }
+        if (alt_int >= 10000)   { *p++ = '0' + (alt_int / 10000) % 10;   } else { *p++ = ' '; }
+        if (alt_int >= 1000)    { *p++ = '0' + (alt_int / 1000) % 10;    } else { *p++ = ' '; }
+        if (alt_int >= 100)     { *p++ = '0' + (alt_int / 100) % 10;     } else { *p++ = ' '; }
+        if (alt_int >= 10)      { *p++ = '0' + (alt_int / 10) % 10;      } else { *p++ = ' '; }
+        *p++ = '0' + alt_int % 10;
+        *p = '\0';
     }
 
     /* Function to calculate intermediate values for the next step */
     void calculateNextStepValues() {
-        a = 2.63 / speedFeet * d;
+        a = 2.63 * invSpeedFeet * d;  /* Use multiplication instead of division */
         X += (d * speedFeet - T / S * (0.19 * E + a * 0.64 + up_down / 1e3) - M * v + gravityAccel * R33) * timeDelta;
         W = d;
-        d += T * (0.45 - 14 / speedFeet * X - a * 130 - up_down * 0.14) * timeDelta / 125e2 + F * timeDelta * v;
-        D = v / speedFeet * 15;
+        d += T * (0.45 - 14 * invSpeedFeet * X - a * 130 - up_down * 0.14) * timeDelta / 125e2 + F * timeDelta * v;
+        D = v * invSpeedFeet * 15;  /* Use multiplication instead of division */
     }
 
     void calculateP() {
@@ -521,15 +607,31 @@ main() {
     /* Set up X Windows */
     setupXWindows(&disp, &win, &gc);
 
+    /* Initialize trigonometric lookup tables */
+    initTrigTables();
+
     /* Load map files from stdin */
     loadMapFiles();
 
+    /* Initialize graphics timer */
+    lastGraphicsTime = getCurrentTime();
+
     /* Infinite loop to update the simulation */
     for (;;) {
-        sleepForInterval();
-        calculateAngles();
-        updateDisplay(disp, win, gc);
+        double currentTime = getCurrentTime();
+        
+        /* Always handle input and update physics at full speed */
         handleKeyPress(disp);
+        calculateAngles();
         updatePhysics();
+        
+        /* Only update graphics every GRAPHICS_INTERVAL seconds */
+        if (currentTime - lastGraphicsTime >= GRAPHICS_INTERVAL) {
+            updateDisplay(disp, win, gc);
+            lastGraphicsTime = currentTime;
+        }
+        
+        /* Small sleep to prevent 100% CPU usage */
+        sleepForInterval();
     }
 }
