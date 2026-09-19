@@ -1,3 +1,5 @@
+
+
 # c_banks_flightsim
 
 Modernization of Carl Bank's 1998 flightsim
@@ -118,6 +120,6 @@ banks1 = “A DISCUSSION OF METHODS OF REAL-TIME AIRPLANE FLIGHT SIMULATION”
 
 The original program has some tricky syntax.
 
-Forms like `-*(DN -N? N-DT ?N== RT?&u: & W:&h:&J )` are nested x ? y :z that return the address of a variable thatgets de-referenced by the * and finally decremented.
+Forms like `-*(DN -N? N-DT ?N== RT?&u: & W:&h:&J )` are nested x ? y :z that return the address of a variable that gets de-referenced by the * and finally decremented.
 
 A comma like in `c += (I = M / l, l * H + I * M + a * X) * _;` makes a sequence of statements. The last one is the value of the `(…)` list.
